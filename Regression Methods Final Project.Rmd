@@ -1,0 +1,795 @@
+---
+title: "Regression Methods Final Project"
+author: "Joe Coyne"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(corrplot)
+library(olsrr)
+library(car)
+library(shiny)
+library(lmtest)
+```
+
+```{r}
+cbb <- read.csv("cbb.csv")
+cbb %>% 
+  arrange(TEAM)
+```
+
+```{r}
+ggplot(cbb, aes(x = W)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "lightblue", color = "black") +
+  stat_function(
+    fun = dnorm,
+    args = list(mean = mean(cbb$W, na.rm = TRUE), sd = sd(cbb$W, na.rm = TRUE)),
+    color = "red",
+    size = 1
+  ) +
+  labs(title = "Histogram of Total Wins in a Season", x = "W", y = "Density")
+```
+
+```{r}
+ggplot(cbb, aes(W)) +
+  geom_boxplot()+
+  labs(title = "Boxplot of Total Wins in a Season",
+    x = "Total Wins")
+```
+
+```{r}
+cbb %>% 
+  arrange(-W)
+```
+
+
+```{r}
+summary(cbb$W)
+```
+
+
+Initial Hypothesis:
+What factors are associated with the number of wins a college basketball team has in a given season
+
+```{r}
+numeric_cbb <- cbb %>%
+  select(where(~ is.numeric(.))) %>% 
+  select(-YEAR)
+
+cor_initial <- cor(numeric_cbb)
+
+corrplot(cor_initial, type = "upper",
+         method = "circle",
+         tl.col = "black",
+         tl.srt = 45,
+         diag = FALSE)
+
+mtext(
+  text = "Correlogram of College Basketball Data", 
+  side = 1,
+  line = -4,
+  at = 0,
+  cex = 0.8,
+  font = 2)
+```
+**The variables that seem most correlated with Wins are: ADJOE (Adjusted Offense), ADJDE (Adjusted Defense), BARTHAG (Power Rating). These are complex variables which are highly associated with the other predictors.**
+
+**EFG_O (Effective Field Goal Percentage Shot), EFG_D (Effective Field Goal Percentage Allowed), TOR (Turnover Percentage Allowed (Turnover Rate)), and X2P_O, X2P_D, X3P_O, and X3P_D (2 or 3 point shooting percentage shot or allowed).**
+
+**Interestingly, ADJ_T (Adjusted Tempo) has no correlation with total wins.**
+
+```{r}
+par(mfrow=c(2,2))
+
+hist(cbb$TOR, main="Histogram of TOR")
+hist(cbb$ORB, main="Histogram of ORB")
+hist(cbb$FTR, main="Histogram of FTR")
+hist(cbb$G, main="Histogram of G")
+```
+
+```{r}
+boxplot(cbb$G)
+
+cbb %>% 
+  filter(G < 20)
+
+cbb_full <- cbb %>% 
+  filter(G >= 20)
+```
+
+```{r}
+hist(cbb_full$G, main="Updated Histogram of G")
+```
+
+
+## Simple Linear Regression
+Not using advanced stats
+
+```{r}
+vif(lm(W~., data = numeric_cbb))
+```
+
+
+CONF
+```{r}
+out_conf <- lm(W~CONF, data = cbb_full)
+summary(out_conf)
+```
+
+
+```{r}
+cbb %>% 
+  group_by(CONF) %>% 
+  reframe(mean(W))
+
+cbb_full %>%
+  group_by(CONF) %>%
+  mutate(mean_W = mean(W)) %>%
+  ungroup() %>%
+  mutate(CONF = reorder(CONF, mean_W)) %>%
+  ggplot(aes(x = CONF, y = W)) +
+  stat_summary(fun = mean, geom = "bar", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Ranked Mean Wins by Conference", x = "Conference", y = "Mean Wins")
+```
+
+```{r}
+cbb %>% 
+  arrange(-W)
+```
+
+
+TOR
+```{r}
+out_tor <- lm(W~TOR, data = cbb_full)
+summary(out_tor)
+```
+
+```{r}
+ggplot(cbb_full,aes(x=TOR,y=W)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Total Wins vs Turnover Rate",
+    x = "Turnover Rate", y = "Total Wins") +
+   labs(subtitle = "(Predicted Total Wins) = 40.9 - 1.334 * (Turnover Rate)")
+```
+
+
+TORD
+```{r}
+out_tord <- lm(W~TORD, data = cbb_full)
+summary(out_tord)
+```
+
+ORB
+```{r}
+out_orb <- lm(W~ORB, data = cbb_full)
+summary(out_orb)
+```
+
+DRB
+```{r}
+out_drb <- lm(W~DRB, data = cbb_full)
+summary(out_drb)
+```
+
+FTR
+```{r}
+out_ftr <- lm(W~FTR, data = cbb_full)
+summary(out_ftr)
+```
+
+FTRD
+```{r}
+out_ftrd <- lm(W~FTRD, data = cbb_full)
+summary(out_ftrd)
+```
+
+X2P_O
+```{r}
+out_x2po <- lm(W~X2P_O, data = cbb_full)
+summary(out_x2po)
+```
+
+```{r}
+ggplot(cbb_full,aes(x=X2P_O,y=W)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Total Wins vs 2 Point Shooting Percentage",
+    x = "2 Point Shooting Percentage", y = "Total Wins")+
+  labs(subtitle = "(Predicted Total Wins) = -35.8 + 1.057 * (2 Point Shooting Percentage)")
+```
+
+
+X2P_D
+```{r}
+out_x2pd <- lm(W~X2P_D, data = cbb_full)
+summary(out_x2pd)
+```
+
+```{r}
+ggplot(cbb_full,aes(x=X2P_D,y=W)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Total Wins vs 2 Point Shooting Percentage Allowed",
+    x = "2 Point Shooting Percentage Allowed", y = "Total Wins") +
+  labs(subtitle = "(Predicted Total Wins) = 66.74 - 1.023 * (2 Point Shooting Percentage Allowed)")
+```
+
+
+X3P_O
+```{r}
+out_x3po <- lm(W~X3P_O, data = cbb_full)
+summary(out_x3po)
+```
+
+X3P_D
+```{r}
+out_x3pd <- lm(W~X3P_D, data = cbb_full)
+summary(out_x3pd)
+```
+
+```{r}
+ggplot(cbb_full,aes(x=X3P_D,y=W)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Total Wins vs 3 Point Shooting Percentage Allowed",
+    x = "3 Point Shooting Percentage Allowed", y = "Total Wins") +
+  labs(subtitle = "(Predicted Total Wins) = 59.14 - 1.249 * (3 Point Shooting Percentage Allowed)")
+```
+
+
+ADJ_T
+```{r}
+out_adjt <- lm(W~ADJ_T, data = cbb_full)
+summary(out_adjt)
+```
+
+
+
+
+## Initial Multiple Linear Regression
+```{r}
+cbb
+out=lm(W~TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data = cbb_full)
+summary(out)
+
+#Removed ADJOE, ADJDE, BARTHAG, EFO_O, EFG_D, and WAB due to multicollinearity
+```
+
+Forward Selection
+```{r}
+k_forward=ols_step_forward_p(out,penter=0.05)
+k_forward
+```
+
+Backward Selection
+```{r}
+k_back=ols_step_backward_p(out,prem=0.05)
+k_back
+```
+
+Stepwise Selection
+```{r}
+k_step=ols_step_both_p(out,pent=0.05,prem=0.05,details=T)
+k_step
+```
+
+```{r}
+null.lm <- lm(W ~ 1, data=cbb_full)
+full.lm <- lm(W~TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data=cbb_full)
+step(null.lm, scope=list(lowr=null.lm, 
+      upper=full.lm), directiom="both")
+```
+
+
+```{r}
+vif(out)
+```
+
+
+```{r}
+k_sub=ols_step_best_subset(out)
+k_sub
+```
+
+**All of the model building techniques result in the same model, which is to include all 11 predictors from out**
+
+```{r}
+scatter.smooth(full.lm$residuals ~ full.lm$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted: Initial MLR Model")
+qqnorm(full.lm$residuals, main = "Normal Q-Q Plot: Initial MLR Model")
+qqline(full.lm$residuals)
+```
+
+```{r}
+bptest(full.lm)
+```
+**We reject H_o and conclude that the constant variance assumption may not be reasonable**
+
+```{r}
+shapiro.test(full.lm$residuals)
+```
+**We reject H_o and conclude that the residuals may not be normal**
+
+## Adding in Conference as a Factor Variable
+```{r}
+out2=lm(W~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data = cbb)
+anova(out2)
+```
+
+```{r}
+vif(out2)
+```
+
+```{r}
+null.lm2 <- lm(W ~ 1, data=cbb_full)
+full.lm2 <- lm(W~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data=cbb_full)
+step(null.lm2, scope=list(lowr=null.lm2, 
+      upper=full.lm2), direction=c("both"))
+
+summary(full.lm2)
+```
+
+**Now running the same stepwise selection with the conference variable, we get all 11 previous predictors plus conference.**
+
+```{r}
+scatter.smooth(full.lm2$residuals ~ full.lm2$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted: Initial MLR Model")
+qqnorm(full.lm2$residuals, main="Normal Q-Q Plot: Initial MLR Model")
+qqline(full.lm2$residuals)
+```
+
+```{r}
+bptest(full.lm2)
+```
+**We reject H_o and conclude that the constant variance assumption may not be reasonable**
+
+```{r}
+shapiro.test(full.lm2$residuals)
+```
+**We reject H_o and conclude that the residuals may not be normal**
+
+
+Check for outliers
+```{r}
+MSE <- summary(full.lm2)$sigma^2 #finding MSE
+
+outlier_df <- round(data.frame(Residuals=full.lm2$residuals,
+ "Standardized Res"=full.lm2$residuals/sqrt(MSE),
+"Studentized Res"=rstandard(full.lm2),
+"Press"=rstandard(full.lm2,type='predictive'),
+ "R-student"=rstudent(full.lm2),
+ "Hat-Values"=hatvalues(full.lm2)),2)
+
+outlier_df %>% 
+  arrange(-Hat.Values)
+
+outlier_df %>% 
+  arrange(R.student)
+```
+
+```{r}
+cbb_full[641,]
+
+# Remove this from the model since it has a hat value of 1 (perfect prediction) and refit
+```
+
+```{r}
+cbb_new <- cbb_full[-641,]
+```
+
+```{r}
+null.lm3 <- lm(W ~ 1, data=cbb_new)
+full.lm3 <- lm(W~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data=cbb_new)
+step(null.lm3, scope=list(lowr=null.lm3, 
+      upper=full.lm3), direction=c("both"))
+
+summary(full.lm3)
+```
+
+```{r}
+scatter.smooth(full.lm3$residuals ~ full.lm3$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted")
+qqnorm(full.lm3$residuals)
+qqline(full.lm3$residuals)
+```
+
+```{r}
+bptest(full.lm3)
+```
+
+```{r}
+shapiro.test(full.lm3$residuals)
+```
+
+```{r}
+MSE_new <- summary(full.lm3)$sigma^2 #finding MSE
+
+outlier_df_new <- round(data.frame(Residuals=full.lm3$residuals,
+ "Standardized Res"=full.lm3$residuals/sqrt(MSE_new),
+"Studentized Res"=rstandard(full.lm3),
+"Press"=rstandard(full.lm3,type='predictive'),
+ "R-student"=rstudent(full.lm3),
+ "Hat-Values"=hatvalues(full.lm3)),2)
+
+outlier_df_new %>% 
+  arrange(-R.student)
+```
+
+```{r}
+cbb_new[2708,]
+```
+
+
+
+## Trying log transformation
+```{r}
+lcbb <- cbb_new %>% 
+  filter(W > 0) %>% 
+  mutate(logw = log(W))
+```
+
+```{r}
+null.lm_log <- lm(logw ~ 1, data=lcbb)
+full.lm_log <- lm(logw~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data=lcbb)
+step(null.lm_log, scope=list(lowr=null.lm_log, 
+      upper=full.lm_log), direction=c("both"))
+
+summary(full.lm_log)
+```
+
+```{r}
+scatter.smooth(full.lm_log$residuals ~ full.lm_log$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted: Log MLR Model")
+qqnorm(full.lm_log$residuals, main="Normal Q-Q Plot: Log MLR Model")
+qqline(full.lm_log$residuals)
+```
+
+```{r}
+bptest(full.lm_log)
+```
+
+```{r}
+shapiro.test(full.lm_log$residuals)
+```
+
+Log transformation doesn't help with non constant variance
+
+## Trying sqrt transformation
+```{r}
+sqrt_cbb <- cbb_new %>% 
+  mutate(sqrt_w = sqrt(W))
+```
+
+```{r}
+null.lm_sqrt <- lm(sqrt_w ~ 1, data=sqrt_cbb)
+full.lm_sqrt <- lm(sqrt_w~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+X2P_D+X3P_O+X3P_D+ADJ_T, data=sqrt_cbb)
+step(null.lm_sqrt, scope=list(lowr=null.lm_sqrt, 
+      upper=full.lm_sqrt), direction=c("both"))
+
+summary(full.lm_sqrt)
+```
+
+```{r}
+scatter.smooth(full.lm_sqrt$residuals ~ full.lm_sqrt$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted: Square Root MLR Model")
+qqnorm(full.lm_sqrt$residuals, main="Normal Q-Q Plot: Square Root MLR Model")
+qqline(full.lm_sqrt$residuals)
+```
+
+```{r}
+bptest(full.lm_sqrt)
+```
+
+```{r}
+shapiro.test(full.lm_sqrt$residuals)
+```
+Sqrt transformation doesn't fix the problem either, but it does help a little with the non-constant variance
+
+## Exploring Residuals vs Predictor plots
+```{r}
+# CONF
+ggplot(sqrt_cbb) +
+  geom_point(aes(x=as.factor(CONF),y=full.lm_sqrt$residuals))
+```
+
+```{r}
+# TOR
+ggplot(sqrt_cbb,aes(x=TOR,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# TORD
+ggplot(sqrt_cbb,aes(x=TORD,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# ORB
+ggplot(sqrt_cbb,aes(x=ORB,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# DRB
+ggplot(sqrt_cbb,aes(x=DRB,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+
+# maybe include a quadratic term here? - not significant and make DRB not significant either
+```
+
+```{r}
+# FTR
+ggplot(sqrt_cbb,aes(x=FTR,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# FTRD
+ggplot(sqrt_cbb,aes(x=FTRD,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# X2P_O
+ggplot(sqrt_cbb,aes(x=X2P_O,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Square Root Residuals vs 2 Point Shooting Percentage") +
+  labs(x = "2 Point Shooting Percentage",
+    y = "Square Root Model Residuals")
+
+# definitely add a quadratic term here
+```
+
+```{r}
+# X2P_D
+ggplot(sqrt_cbb,aes(x=X2P_D,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+```{r}
+# X3P_O
+ggplot(sqrt_cbb,aes(x=X3P_O,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Square Root Residuals vs 3 Point Shooting Percentage") +
+  labs(x = "3 Point Shooting Percentage",
+    y = "Square Root Model Residuals")
+
+# maybe add a quadratic term here
+```
+
+```{r}
+# X3P_D
+ggplot(sqrt_cbb,aes(x=X3P_D,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Square Root Residuals vs 3 Point Shooting Percentage Allowed")+
+  labs(x = "3 Point Shooting Percentage Allowed",
+    y = "Square Root Model Residuals")
+
+# probably add a quadratic term here
+```
+
+```{r}
+# ADJ_T
+ggplot(sqrt_cbb,aes(x=ADJ_T,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+
+## New model with squared X2P_O
+```{r}
+null.lm_sqrt2 <- lm(sqrt_w ~ 1, data=sqrt_cbb)
+full.lm_sqrt2 <- lm(sqrt_w~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+I(X2P_O^2)+X2P_D+X3P_O+I(X3P_O^2)+X3P_D+I(X3P_D^2)+ADJ_T, data=sqrt_cbb)
+step(null.lm_sqrt2, scope=list(lowr=null.lm_sqrt2, 
+      upper=full.lm_sqrt2), direction=c("both"))
+
+summary(full.lm_sqrt2)
+```
+
+```{r}
+scatter.smooth(full.lm_sqrt2$residuals ~ full.lm_sqrt2$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted: Updated Square Root MLR Model")
+qqnorm(full.lm_sqrt2$residuals, main="Normal Q-Q Plot: Updated Square Root MLR Model")
+qqline(full.lm_sqrt2$residuals)
+```
+
+```{r}
+bptest(full.lm_sqrt2)
+```
+
+```{r}
+shapiro.test(full.lm_sqrt2$residuals)
+```
+**Will be using the new square root model.**
+
+
+```{r}
+MSE_final <- summary(full.lm_sqrt2)$sigma^2 #finding MSE
+
+outlier_df_final <- round(data.frame(Residuals=full.lm_sqrt2$residuals,
+ "Standardized Res"=full.lm_sqrt2$residuals/sqrt(MSE_final),
+"Studentized Res"=rstandard(full.lm_sqrt2),
+"Press"=rstandard(full.lm_sqrt2,type='predictive'),
+ "R-student"=rstudent(full.lm_sqrt2),
+ "Hat-Values"=hatvalues(full.lm_sqrt2)),2)
+
+outlier_df_final %>% 
+  arrange(R.student)
+```
+
+22/3884 = 0.0057 = 0.57% of observations are outliers, not a huge issue
+
+```{r}
+sqrt_cbb
+```
+
+## Adding interaction terms
+```{r}
+ggplot(sqrt_cbb,aes(x=X2P_O*X3P_O,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+
+ggplot(sqrt_cbb,aes(x=X3P_O*X3P_D,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+
+# TOR*X2P_D, TOR*X3P_D
+```
+
+```{r}
+ggplot(sqrt_cbb,aes(x=X2P_O*ADJ_T,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+
+ggplot(sqrt_cbb,aes(x=X3P_D*ADJ_T,y=full.lm_sqrt$residuals)) +
+  geom_point() +
+  geom_smooth()
+```
+
+
+```{r}
+null.lm_full <- lm(sqrt_w ~ 1, data=sqrt_cbb)
+full.lm_full <- lm(sqrt_w~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+I(X2P_O^2)+X2P_D+X3P_O+I(X3P_O^2)+X3P_D+I(X3P_D^2)+ADJ_T+I(X2P_O*X3P_O)+I(X2P_O*ADJ_T), data=sqrt_cbb)
+step(null.lm_full, scope=list(lowr=null.lm_full, 
+      upper=full.lm_full), direction=c("both"))
+
+full.lm_full2 <- lm(sqrt_w ~ as.factor(CONF) + I(X2P_O * X3P_O) + X2P_D + I(X3P_D^2) + 
+    TOR + ORB + TORD + DRB + FTR + FTRD + I(X2P_O * ADJ_T)+ X2P_O + I(X2P_O^2) + X3P_O + X3P_D, data = sqrt_cbb)
+
+summary(full.lm_full2)
+```
+
+```{r}
+scatter.smooth(full.lm_full2$residuals ~ full.lm_full2$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted")
+qqnorm(full.lm_full2$residuals)
+qqline(full.lm_full2$residuals)
+```
+
+```{r}
+bptest(full.lm_full)
+```
+
+```{r}
+shapiro.test(full.lm_full$residuals)
+```
+
+
+## Box Cox Transformation
+```{r}
+cbb_box <- cbb_new %>% 
+  filter(W > 0)
+
+sqrt_box <- sqrt_cbb %>% 
+  mutate(sqrt_w = sqrt(W+1))
+
+library(MASS)
+b <- boxcox(lm(sqrt_w ~ 1, data = sqrt_box))
+# Exact lambda
+lambda <- b$x[which.max(b$y)]
+lambda
+1.515152
+
+sqrt_cbb %>% 
+  arrange(sqrt_w)
+```
+
+```{r}
+sqrt_box$W_shifted <- sqrt_box$W + abs(min(sqrt_box$W)) + 1  # if W has zeros or negatives
+sqrt_box$W_boxcox <- (sqrt_box$W_shifted^lambda - 1) / lambda
+```
+
+```{r}
+null.lm_box <- lm(W_boxcox ~ 1, data=sqrt_box)
+full.lm_box <- lm(W_boxcox~as.factor(CONF)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+I(X2P_O^2)+X2P_D+X3P_O+I(X3P_O^2)+X3P_D+I(X3P_D^2)+ADJ_T, data=sqrt_box)
+step(null.lm_box, scope=list(lowr=null.lm_box, 
+      upper=full.lm_box), direction=c("both"))
+
+boxcox_final <- lm(W_boxcox ~ as.factor(CONF) + X2P_O + X2P_D + TOR + ORB + X3P_D + I(X3P_O^2) + 
+    TORD + DRB + FTRD + FTR + as.factor(CONF) + I(X2P_O^2) + 
+    ADJ_T + I(X3P_D^2), data = sqrt_box)
+
+summary(boxcox_final)
+```
+
+```{r}
+scatter.smooth(boxcox_final$residuals ~ boxcox_final$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted")
+qqnorm(boxcox_final$residuals)
+qqline(boxcox_final$residuals)
+```
+
+```{r}
+bptest(boxcox_final)
+```
+
+```{r}
+shapiro.test(boxcox_final$residuals)
+```
+
+## FINAL MODEL
+```{r}
+final_lm <- full.lm_sqrt
+summary(final_lm)
+cbb %>% 
+  arrange(-YEAR)
+```
+
+
+## Sensitivity Analysis
+
+```{r}
+sqrt_cbb
+```
+
+
+
+## Summarizing Conference
+High major, mid major, low major
+```{r}
+sqrt_cbb
+
+cbb_conf <- sqrt_cbb %>%
+  mutate(CONF_bin = case_when(
+    CONF %in% c("B12", "BE", "B10", "P12", "SEC", "ACC") ~ "Power Conference",
+    CONF %in% c("Amer", "MWC", "WCC", "A10") ~ "High Major",
+    CONF %in% c("MVC", "SB", "MAC", "CUSA", "WAC", "Ivy") ~ "Mid Major",
+    TRUE ~ "Low Major"
+  ))
+
+cbb_conf
+```
+
+```{r}
+null.lm_conf <- lm(sqrt_w ~ 1, data=cbb_conf)
+full.lm_conf <- lm(sqrt_w~as.factor(CONF_bin)+TOR+TORD+ORB+DRB+FTR+FTRD+X2P_O+I(X2P_O^2)+X2P_D+X3P_O+I(X3P_O^2)+X3P_D+I(X3P_D^2)+ADJ_T, data=cbb_conf)
+step(null.lm_conf, scope=list(lowr=null.lm_conf, 
+      upper=full.lm_conf), direction=c("both"))
+
+confmodel_final <- lm(sqrt_w ~ as.factor(CONF_bin) + X2P_O + X2P_D + TOR + ORB + I(X3P_D^2) + X3P_O + TORD + DRB + FTR + FTRD + I(X2P_O^2) + ADJ_T + 
+    X3P_D + I(X3P_O^2), data = cbb_conf)
+
+summary(full.lm_conf)
+```
+
+```{r}
+scatter.smooth(confmodel_final$residuals ~ confmodel_final$fitted.values, lpars = list(col = "red", lwd = 3), span = 0.67, main="Residuals vs Fitted")
+qqnorm(confmodel_final$residuals)
+qqline(confmodel_final$residuals)
+```
+
+```{r}
+bptest(confmodel_final)
+```
+
+```{r}
+shapiro.test(confmodel_final$residuals)
+```
